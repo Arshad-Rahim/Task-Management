@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://task-management-iota-dusky.vercel.app/api",
+  baseURL: "https://task-management-ffe9.onrender.com/api",
 });
 
 api.interceptors.request.use((config) => {
