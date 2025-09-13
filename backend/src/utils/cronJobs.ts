@@ -1,22 +1,18 @@
 import cron from "node-cron";
-import { Task, ITask } from "../models/Task";
+import { Task, ITask, IUser } from "../models/Task";
 import { Project, IProject } from "../models/Project";
 import { sendEmail } from "../services/emailService";
 import moment from "moment-timezone";
-import { IUser } from "../models/User"; // <-- add this
+import { Schema } from "mongoose";
 
-// Define a populated Task type
-interface IPopulatedTask extends Omit<ITask, "assignee"> {
-  assignee: IUser;
-}
-
-// Define a populated Project type
-interface IPopulatedProject extends Omit<IProject, "members"> {
-  members: IUser[];
+// Type guard to check if an array is IUser[]
+function isIUserArray(
+  members: Schema.Types.ObjectId[] | IUser[]
+): members is IUser[] {
+  return members.length > 0 && "email" in members[0];
 }
 
 export const setupCronJobs = () => {
-  // Daily reminders
   cron.schedule(
     "0 2 * * *",
     async () => {
@@ -31,10 +27,10 @@ export const setupCronJobs = () => {
           `Running daily reminder at ${now} IST for tasks due between ${now} and ${tomorrow}`
         );
 
-        const tasks = (await Task.find({
+        const tasks = await Task.find({
           deadline: { $gt: now, $lt: tomorrow },
           status: { $ne: "done" },
-        }).populate("assignee", "email")) as unknown as IPopulatedTask[];
+        }).populate("assignee", "email");
 
         if (tasks.length === 0) {
           console.log("No tasks due within 24 hours.");
@@ -42,13 +38,14 @@ export const setupCronJobs = () => {
         }
 
         for (const task of tasks) {
-          if (!task.assignee?.email) {
+          const assignee = task.assignee as IUser; // Type assertion since populate ensures IUser
+          if (!assignee.email) {
             console.warn(`No email found for assignee of task ${task.title}`);
             continue;
           }
           try {
             await sendEmail(
-              task.assignee.email,
+              assignee.email,
               `Task Reminder: ${task.title}`,
               `Your task "${
                 task.title
@@ -57,7 +54,7 @@ export const setupCronJobs = () => {
                 .format("YYYY-MM-DD HH:mm:ss")} IST`
             );
             console.log(
-              `Reminder email sent for task ${task.title} to ${task.assignee.email}`
+              `Reminder email sent for task ${task.title} to ${assignee.email}`
             );
           } catch (emailError) {
             console.error(
@@ -75,16 +72,11 @@ export const setupCronJobs = () => {
     }
   );
 
-  // Weekly project summaries
   cron.schedule(
     "0 3 * * 1",
     async () => {
       try {
-        const projects = (await Project.find().populate(
-          "members",
-          "email"
-        )) as unknown as IPopulatedProject[];
-
+        const projects = await Project.find().populate("members", "email");
         for (const project of projects) {
           const tasks = await Task.find({ project: project._id });
           const stats = {
@@ -94,13 +86,12 @@ export const setupCronJobs = () => {
             todo: tasks.filter((t) => t.status === "todo").length,
           };
 
-          const emails = project.members
-            .map((m: IUser) => m.email)
-            .filter((email: string | undefined): email is string =>
-              Boolean(email)
-            )
-            .join(",");
-
+          const emails = isIUserArray(project.members)
+            ? project.members
+                .map((m: IUser) => m.email)
+                .filter((email: string) => email)
+                .join(",")
+            : "";
           if (emails) {
             await sendEmail(
               emails,

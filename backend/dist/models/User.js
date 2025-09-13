@@ -10,16 +10,20 @@ const userSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ["admin", "user"], default: "user" },
-    avatar: String,
+    role: {
+        type: String,
+        enum: ["admin", "user"],
+        default: "user",
+    },
+    avatar: { type: String },
 }, { timestamps: true });
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password"))
         return next();
-    this.password = await bcryptjs_1.default.hash(this.password, 12);
+    this.password = await bcryptjs_1.default.hash(this.password, 10);
     next();
 });
 userSchema.methods.comparePassword = async function (candidate) {
-    return bcryptjs_1.default.compare(candidate, this.password);
+    return await bcryptjs_1.default.compare(candidate, this.password);
 };
 exports.User = (0, mongoose_1.model)("User", userSchema);

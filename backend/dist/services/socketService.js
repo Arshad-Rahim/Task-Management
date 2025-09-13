@@ -4,11 +4,9 @@ exports.setupSocket = void 0;
 const taskController_1 = require("../controllers/taskController");
 const setupSocket = (io) => {
     io.on("connection", (socket) => {
-        console.log("User connected:", socket.id);
         // Join rooms based on projects
         socket.on("joinProject", (projectId) => {
             socket.join(projectId);
-            console.log(`User ${socket.id} joined project ${projectId}`);
         });
         // Handle task creation
         socket.on("createTask", async (taskData, callback) => {

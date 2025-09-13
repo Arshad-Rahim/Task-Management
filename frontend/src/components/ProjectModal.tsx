@@ -24,13 +24,18 @@ interface ProjectModalProps {
   mode: "view" | "create";
 }
 
-export function ProjectModal({ project, isOpen, onClose, mode }: ProjectModalProps) {
+export function ProjectModal({
+  project,
+  isOpen,
+  onClose,
+  mode,
+}: ProjectModalProps) {
   const { addProject } = useProjectStore();
   const { user } = useAuthStore();
   const [formData, setFormData] = useState({
     title: project?.title || "",
     description: project?.description || "",
-    status: project?.status || "active" as Project["status"],
+    status: project?.status || ("active" as Project["status"]),
     members: [] as string[],
   });
   const [users, setUsers] = useState<User[]>([]);
@@ -43,7 +48,7 @@ export function ProjectModal({ project, isOpen, onClose, mode }: ProjectModalPro
         title: project.title,
         description: project.description,
         status: project.status,
-        members: project.members.map((m) => m._id || m.id),
+        members: project.members.map((m) => m.id || m._id || ""),
       });
       setLoadingUsers(false);
     } else if (mode === "create") {
@@ -104,10 +109,7 @@ export function ProjectModal({ project, isOpen, onClose, mode }: ProjectModalPro
 
     const payload = {
       ...formData,
-      members:
-        formData.members.length > 0
-          ? formData.members
-          : [user?._id || user?.id],
+      members: formData.members.length > 0 ? formData.members : [user?.id],
     };
     console.log("Payload being sent:", payload);
     try {
@@ -127,24 +129,36 @@ export function ProjectModal({ project, isOpen, onClose, mode }: ProjectModalPro
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>{mode === "view" ? "Project Details" : "Create New Project"}</DialogTitle>
+          <DialogTitle>
+            {mode === "view" ? "Project Details" : "Create New Project"}
+          </DialogTitle>
         </DialogHeader>
         {mode === "view" && project ? (
           <div className="space-y-4">
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Title</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Title
+              </Label>
               <p className="text-foreground">{project.title}</p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Description</Label>
-              <p className="text-foreground">{project.description || "No description"}</p>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Description
+              </Label>
+              <p className="text-foreground">
+                {project.description || "No description"}
+              </p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Status
+              </Label>
               <p className="text-foreground capitalize">{project.status}</p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Members</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Members
+              </Label>
               <p className="text-foreground">
                 {project.members.length > 0
                   ? project.members.map((m) => m.name).join(", ")
@@ -152,27 +166,37 @@ export function ProjectModal({ project, isOpen, onClose, mode }: ProjectModalPro
               </p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Total Tasks</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Total Tasks
+              </Label>
               <p className="text-foreground">{project.tasksCount}</p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Completed Tasks</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Completed Tasks
+              </Label>
               <p className="text-foreground">{project.completedTasks}</p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Created At</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Created At
+              </Label>
               <p className="text-foreground">
                 {new Date(project.createdAt).toLocaleString()}
               </p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Updated At</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Updated At
+              </Label>
               <p className="text-foreground">
                 {new Date(project.updatedAt).toLocaleString()}
               </p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Version</Label>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Version
+              </Label>
               <p className="text-foreground">{project.__v ?? "N/A"}</p>
             </div>
             <DialogFooter>
@@ -236,7 +260,7 @@ export function ProjectModal({ project, isOpen, onClose, mode }: ProjectModalPro
                   <option disabled>Loading users...</option>
                 ) : (
                   users.map((u) => (
-                    <option key={u._id || u.id} value={u._id || u.id}>
+                    <option key={u.id || u._id} value={u.id || u._id}>
                       {u.name} ({u.email})
                     </option>
                   ))
@@ -247,7 +271,10 @@ export function ProjectModal({ project, isOpen, onClose, mode }: ProjectModalPro
               <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loadingUsers || user?.role !== "admin"}>
+              <Button
+                type="submit"
+                disabled={loadingUsers || user?.role !== "admin"}
+              >
                 Create Project
               </Button>
             </div>

@@ -9,8 +9,11 @@ const Task_1 = require("../models/Task");
 const Project_1 = require("../models/Project");
 const emailService_1 = require("../services/emailService");
 const moment_timezone_1 = __importDefault(require("moment-timezone"));
+// Type guard to check if an array is IUser[]
+function isIUserArray(members) {
+    return members.length > 0 && "email" in members[0];
+}
 const setupCronJobs = () => {
-    // Daily reminders
     node_cron_1.default.schedule("0 2 * * *", async () => {
         try {
             const now = (0, moment_timezone_1.default)().tz("Asia/Kolkata").toDate();
@@ -19,24 +22,25 @@ const setupCronJobs = () => {
                 .add(24, "hours")
                 .toDate();
             console.log(`Running daily reminder at ${now} IST for tasks due between ${now} and ${tomorrow}`);
-            const tasks = (await Task_1.Task.find({
+            const tasks = await Task_1.Task.find({
                 deadline: { $gt: now, $lt: tomorrow },
                 status: { $ne: "done" },
-            }).populate("assignee", "email"));
+            }).populate("assignee", "email");
             if (tasks.length === 0) {
                 console.log("No tasks due within 24 hours.");
                 return;
             }
             for (const task of tasks) {
-                if (!task.assignee?.email) {
+                const assignee = task.assignee; // Type assertion since populate ensures IUser
+                if (!assignee.email) {
                     console.warn(`No email found for assignee of task ${task.title}`);
                     continue;
                 }
                 try {
-                    await (0, emailService_1.sendEmail)(task.assignee.email, `Task Reminder: ${task.title}`, `Your task "${task.title}" is due within 24 hours. Deadline: ${(0, moment_timezone_1.default)(task.deadline)
+                    await (0, emailService_1.sendEmail)(assignee.email, `Task Reminder: ${task.title}`, `Your task "${task.title}" is due within 24 hours. Deadline: ${(0, moment_timezone_1.default)(task.deadline)
                         .tz("Asia/Kolkata")
                         .format("YYYY-MM-DD HH:mm:ss")} IST`);
-                    console.log(`Reminder email sent for task ${task.title} to ${task.assignee.email}`);
+                    console.log(`Reminder email sent for task ${task.title} to ${assignee.email}`);
                 }
                 catch (emailError) {
                     console.error(`Failed to send reminder for task ${task.title}:`, emailError);
@@ -49,10 +53,9 @@ const setupCronJobs = () => {
     }, {
         timezone: "Asia/Kolkata",
     });
-    // Weekly project summaries
     node_cron_1.default.schedule("0 3 * * 1", async () => {
         try {
-            const projects = (await Project_1.Project.find().populate("members", "email"));
+            const projects = await Project_1.Project.find().populate("members", "email");
             for (const project of projects) {
                 const tasks = await Task_1.Task.find({ project: project._id });
                 const stats = {
@@ -61,10 +64,12 @@ const setupCronJobs = () => {
                     inProgress: tasks.filter((t) => t.status === "in-progress").length,
                     todo: tasks.filter((t) => t.status === "todo").length,
                 };
-                const emails = project.members
-                    .map((m) => m.email)
-                    .filter((email) => Boolean(email))
-                    .join(",");
+                const emails = isIUserArray(project.members)
+                    ? project.members
+                        .map((m) => m.email)
+                        .filter((email) => email)
+                        .join(",")
+                    : "";
                 if (emails) {
                     await (0, emailService_1.sendEmail)(emails, `Weekly Project Summary: ${project.title}`, `Project Stats: Total Tasks: ${stats.total}, Completed: ${stats.completed}, In Progress: ${stats.inProgress}, Todo: ${stats.todo}`);
                     console.log(`Weekly summary sent for project ${project.title} to ${emails}`);

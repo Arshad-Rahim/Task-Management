@@ -18,6 +18,7 @@ const authMiddleware_1 = require("./middlewares/authMiddleware");
 const allowedOrigins = [
     process.env.CORS_ORIGIN || "http://localhost:5173",
     "http://localhost:3000",
+    "https://task-management-iota-dusky.vercel.app",
 ];
 const createApp = () => {
     const app = (0, express_1.default)();
@@ -25,6 +26,7 @@ const createApp = () => {
     exports.io = new socket_io_1.Server(server, {
         cors: {
             origin: (origin, callback) => {
+                console.log("Socket.IO CORS origin:", origin); // Debug
                 if (!origin || allowedOrigins.includes(origin)) {
                     callback(null, true);
                 }
@@ -51,8 +53,10 @@ const createApp = () => {
         }
     });
     (0, socketService_1.setupSocket)(exports.io);
-    app.use((0, cors_1.default)({
+    // Handle preflight requests globally
+    app.options('*', (0, cors_1.default)({
         origin: (origin, callback) => {
+            console.log("Preflight CORS origin:", origin); // Debug
             if (!origin || allowedOrigins.includes(origin)) {
                 callback(null, true);
             }
@@ -60,7 +64,22 @@ const createApp = () => {
                 callback(new Error("Not allowed by CORS"));
             }
         },
-        methods: ["GET", "POST", "PUT", "DELETE"],
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true,
+    }));
+    app.use((0, cors_1.default)({
+        origin: (origin, callback) => {
+            console.log("HTTP CORS origin:", origin); // Debug
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            }
+            else {
+                callback(new Error("Not allowed by CORS"));
+            }
+        },
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
         credentials: true,
     }));
     app.use(express_1.default.json());
