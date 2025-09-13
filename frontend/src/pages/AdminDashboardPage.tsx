@@ -26,9 +26,11 @@ import api from "@/api";
 import { socket } from "@/lib/socket";
 
 export function AdminDashboardPage() {
-  const { tasks, moveTask, fetchTasks, initializeSocket, addTask } = useTaskStore();
-  const { user, restoreAuth } = useAuthStore();
-  const { fetchNotifications, initializeSocket: initializeNotificationSocket } = useNotificationStore();
+  const { tasks, moveTask, fetchTasks, initializeSocket, addTask } =
+    useTaskStore();
+  const { user } = useAuthStore();
+  const { fetchNotifications, initializeSocket: initializeNotificationSocket } =
+    useNotificationStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("all");
@@ -47,32 +49,30 @@ export function AdminDashboardPage() {
   );
 
   useEffect(() => {
-    // Restore auth before fetching
-    restoreAuth().then(() => {
-      const fetchProjects = async () => {
-        try {
-          setLoadingProjects(true);
-          const response = await api.get("/projects");
-          console.log("Fetched admin projects:", response.data);
-          const fetchedProjects = response.data.map((p: any) => ({
-            ...p,
-            id: p.id || p._id.toString(),
-          }));
-          setProjects(fetchedProjects);
-        } catch (error) {
-          console.error("Failed to fetch projects:", error);
-        } finally {
-          setLoadingProjects(false);
-        }
-      };
+    const fetchProjects = async () => {
+      try {
+        setLoadingProjects(true);
+        const response = await api.get("/projects");
+        console.log("Fetched admin projects:", response.data);
+        const fetchedProjects = response.data.map((p: any) => ({
+          ...p,
+          id: p.id || p._id.toString(),
+        }));
+        setProjects(fetchedProjects);
+      } catch (error) {
+        console.error("Failed to fetch projects:", error);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
 
-      fetchProjects();
-      fetchTasks();
-      fetchNotifications();
-    });
-  }, [restoreAuth, fetchTasks, fetchNotifications]);
+    fetchProjects();
+  }, []);
 
   useEffect(() => {
+    fetchTasks();
+    fetchNotifications();
+
     if (!user?.id || projects.length === 0 || loadingProjects) return;
 
     socket.emit("leaveAllProjects");
@@ -101,8 +101,10 @@ export function AdminDashboardPage() {
       socket.off("taskAdded");
     };
   }, [
+    fetchTasks,
     selectedProject,
     initializeSocket,
+    fetchNotifications,
     user?.id,
     initializeNotificationSocket,
     projects,
