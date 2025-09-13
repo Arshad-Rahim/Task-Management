@@ -12,7 +12,8 @@ import { verifyToken } from "./middlewares/authMiddleware";
 
 const allowedOrigins = [
   process.env.CORS_ORIGIN || "http://localhost:5173",
-  "http://localhost:3000", 
+  "http://localhost:3000",
+  "https://task-management-iota-dusky.vercel.app", // Explicitly add Vercel URL
 ];
 
 export let io: SocketServer;
@@ -24,6 +25,7 @@ export const createApp = (): { app: Application; server: HttpServer } => {
   io = new SocketServer(server, {
     cors: {
       origin: (origin, callback) => {
+        console.log("Socket.IO CORS origin:", origin); // Debug
         if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
@@ -54,20 +56,20 @@ export const createApp = (): { app: Application; server: HttpServer } => {
   app.use(
     cors({
       origin: (origin, callback) => {
+        console.log("HTTP CORS origin:", origin); // Debug
         if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
           callback(new Error("Not allowed by CORS"));
         }
       },
-      methods: ["GET", "POST", "PUT", "DELETE"],
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Explicitly include OPTIONS
+      allowedHeaders: ["Content-Type", "Authorization"], // Allow necessary headers
       credentials: true,
     })
   );
 
   app.use(express.json());
-
-
 
   app.use("/api/auth", authRoutes);
   app.use("/api/projects", projectRoutes);
