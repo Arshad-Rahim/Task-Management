@@ -15,10 +15,10 @@ export function ProjectsPage() {
   const { projects } = useProjectStore();
   const { user } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | Project["status"]>(
-    "all"
-  );
+  const [statusFilter, setStatusFilter] = useState<"all" | Project["status"]>("all");
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [modalMode, setModalMode] = useState<"view" | "create">("view");
 
   const filteredProjects = projects.filter((project) => {
     const matchesSearch =
@@ -31,10 +31,21 @@ export function ProjectsPage() {
 
   const handleViewProject = (project: Project) => {
     console.log("Viewing project:", project);
+    setSelectedProject(project);
+    setModalMode("view");
+    setModalOpen(true);
   };
 
   const handleAddProject = () => {
+    setSelectedProject(null);
+    setModalMode("create");
     setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setSelectedProject(null);
+    setModalMode("view");
   };
 
   return (
@@ -89,7 +100,7 @@ export function ProjectsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredProjects.map((project) => (
           <ProjectCard
-            key={project.id}
+            key={project.id || project._id}
             project={project}
             onView={handleViewProject}
           />
@@ -126,7 +137,12 @@ export function ProjectsPage() {
         </Card>
       )}
 
-      <ProjectModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
+      <ProjectModal
+        project={selectedProject}
+        isOpen={modalOpen}
+        onClose={handleCloseModal}
+        mode={modalMode}
+      />
     </div>
   );
 }

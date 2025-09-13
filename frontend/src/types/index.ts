@@ -18,6 +18,7 @@ export interface Project {
   members: User[];
   tasksCount: number;
   completedTasks: number;
+  __v?: number; // ✅ MongoDB version key
 }
 
 export interface Task {
