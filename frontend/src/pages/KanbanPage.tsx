@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { useTaskStore } from "@/store/taskStore";
 import { useAuthStore } from "@/store/authStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import type { Task, Project } from "@/types";
-import { Search, Filter, BarChart3 } from "lucide-react";
+import { Search, Filter, Plus } from "lucide-react";
 import {
   DndContext,
   type DragEndEvent,
@@ -19,13 +21,14 @@ import {
 } from "@dnd-kit/core";
 import { TaskCard } from "@/components/TaskCard";
 import { TaskModal } from "@/components/TaskModal";
+import { NotificationDropdown } from "@/components/NotificationDropdown";
 import api from "@/api";
 import { socket } from "@/lib/socket";
 
 export function KanbanPage() {
-  const { tasks, moveTask, fetchTasks, initializeSocket, addTask } =
-    useTaskStore();
-  const { user } = useAuthStore();
+  const { tasks, moveTask, fetchTasks, initializeSocket, addTask } = useTaskStore();
+  const { user, restoreAuth } = useAuthStore();
+  const { fetchNotifications, initializeSocket: initializeNotificationSocket } = useNotificationStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("all");
@@ -44,31 +47,32 @@ export function KanbanPage() {
   );
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        setLoadingProjects(true);
-        const response = await api.get(`/projects/user/${user?.id}`);
-        console.log("Fetched user projects:", response.data);
-        const fetchedProjects = response.data.map((p: any) => ({
-          ...p,
-          id: p.id || p._id.toString(),
-        }));
-        setProjects(fetchedProjects);
-      } catch (error) {
-        console.error("Failed to fetch projects:", error);
-      } finally {
-        setLoadingProjects(false);
-      }
-    };
+    // Restore auth before fetching
+    restoreAuth().then(() => {
+      const fetchProjects = async () => {
+        try {
+          setLoadingProjects(true);
+          const response = await api.get("/projects");
+          console.log("Fetched kanban projects:", response.data);
+          const fetchedProjects = response.data.map((p: any) => ({
+            ...p,
+            id: p.id || p._id.toString(),
+          }));
+          setProjects(fetchedProjects);
+        } catch (error) {
+          console.error("Failed to fetch projects:", error);
+        } finally {
+          setLoadingProjects(false);
+        }
+      };
 
-    if (user?.id) {
       fetchProjects();
-    }
-  }, [user?.id]);
+      fetchTasks();
+      fetchNotifications();
+    });
+  }, [restoreAuth, fetchTasks, fetchNotifications]);
 
   useEffect(() => {
-    fetchTasks();
-
     if (!user?.id || projects.length === 0 || loadingProjects) return;
 
     socket.emit("leaveAllProjects");
@@ -76,7 +80,7 @@ export function KanbanPage() {
     const projectIdsToJoin =
       selectedProject === "all" ? projects.map((p) => p.id) : [selectedProject];
 
-    console.log("Joining project rooms:", projectIdsToJoin);
+    console.log("Joining kanban project rooms:", projectIdsToJoin);
 
     projectIdsToJoin.forEach((projectId) => {
       if (projectId && projectId !== "all") {
@@ -84,23 +88,25 @@ export function KanbanPage() {
       }
     });
 
+    if (user?.id) {
+      initializeNotificationSocket();
+    }
+
     socket.on("taskAdded", (newTask: Task) => {
-      console.log("Task added event received:", newTask);
-      if (newTask.assignee.id === user?.id) {
-        addTask(newTask);
-      }
+      console.log("Kanban received taskAdded:", newTask);
+      addTask(newTask);
     });
 
     return () => {
       socket.off("taskAdded");
     };
   }, [
-    fetchTasks,
     selectedProject,
+    initializeSocket,
+    user?.id,
+    initializeNotificationSocket,
     projects,
     loadingProjects,
-    user?.id,
-    initializeSocket,
     addTask,
   ]);
 
@@ -110,8 +116,7 @@ export function KanbanPage() {
       task.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesProject =
       selectedProject === "all" || task.projectId === selectedProject;
-    const isAssignedToUser = task.assignee.id === user?.id;
-    return matchesSearch && matchesProject && isAssignedToUser;
+    return matchesSearch && matchesProject;
   });
 
   const todoTasks = filteredTasks.filter((task) => task.status === "todo");
@@ -155,12 +160,12 @@ export function KanbanPage() {
         activeContainer &&
         overContainer &&
         activeContainer !== overContainer &&
-        task.assignee.id === user?.id &&
         ["todo", "in-progress", "done"].includes(overContainer)
       ) {
+        console.log(
+          `Moving task ${activeId} from ${activeContainer} to ${overContainer}`
+        );
         moveTask(activeId, overContainer as Task["status"]);
-      } else if (task.assignee.id !== user?.id) {
-        alert("You can only update tasks assigned to you.");
       }
     }
 
@@ -173,13 +178,16 @@ export function KanbanPage() {
     setTaskModalOpen(true);
   };
 
+  const handleAddTask = () => {
+    setSelectedTask(null);
+    setTaskModalMode("create");
+    setTaskModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setTaskModalOpen(false);
     setSelectedTask(null);
-    setTaskModalMode("view");
   };
-
-
 
   const columns = [
     {
@@ -210,13 +218,17 @@ export function KanbanPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center space-x-2">
-            <BarChart3 className="h-8 w-8" />
-            <span>Kanban Board</span>
-          </h1>
+          <h1 className="text-3xl font-bold text-foreground">Kanban Board</h1>
           <p className="text-muted-foreground mt-1">
-            Drag and drop tasks to update their status.
+            Organize and track your tasks.
           </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <NotificationDropdown />
+          <Button onClick={handleAddTask}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Task
+          </Button>
         </div>
       </div>
 
@@ -264,6 +276,7 @@ export function KanbanPage() {
               status={column.status}
               tasks={column.tasks}
               onTaskClick={handleTaskClick}
+              onAddTask={handleAddTask}
               color={column.color}
             />
           ))}
@@ -275,43 +288,6 @@ export function KanbanPage() {
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Tasks
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredTasks.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              In Progress
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {inProgressTasks.length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Completed
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {doneTasks.length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       <TaskModal
         task={selectedTask}

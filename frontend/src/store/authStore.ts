@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import api from "@/api";
-
 import type { User } from "@/types";
 
 interface AuthState {
@@ -15,6 +14,7 @@ interface AuthState {
     name: string,
     role: "admin" | "user"
   ) => Promise<boolean>;
+  restoreAuth: () => Promise<void>; // New: Restore token
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -31,6 +31,7 @@ export const useAuthStore = create<AuthState>()(
           set({ user, isAuthenticated: true });
           return true;
         } catch (error) {
+          console.error("Login failed:", error);
           return false;
         }
       },
@@ -58,7 +59,24 @@ export const useAuthStore = create<AuthState>()(
           set({ user, isAuthenticated: true });
           return true;
         } catch (error) {
+          console.error("Signup failed:", error);
           return false;
+        }
+      },
+      restoreAuth: async () => {
+        const token = localStorage.getItem("token");
+        if (token) {
+          try {
+            // Verify token by fetching user data
+            api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+            const response = await api.get("/auth/me");
+            set({ user: response.data, isAuthenticated: true });
+          } catch (error) {
+            console.error("Auth restoration failed:", error);
+            localStorage.removeItem("token");
+            delete api.defaults.headers.common["Authorization"];
+            set({ user: null, isAuthenticated: false });
+          }
         }
       },
     }),

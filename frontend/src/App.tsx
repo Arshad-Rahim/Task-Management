@@ -11,7 +11,7 @@ import { useAuthStore } from "./store/authStore";
 import { useProjectStore } from "./store/projectStore";
 
 function App() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, restoreAuth } = useAuthStore();
   const { theme } = useThemeStore();
   const { fetchProjects, fetchTasks } = useProjectStore();
 
@@ -20,11 +20,14 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchProjects();
-      fetchTasks();
-    }
-  }, [isAuthenticated]);
+    // Restore auth before fetching data
+    restoreAuth().then(() => {
+      if (isAuthenticated) {
+        fetchProjects();
+        fetchTasks();
+      }
+    });
+  }, [isAuthenticated, restoreAuth, fetchProjects, fetchTasks]);
 
   return (
     <Routes>
