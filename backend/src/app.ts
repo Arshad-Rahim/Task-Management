@@ -13,7 +13,7 @@ import { verifyToken } from "./middlewares/authMiddleware";
 const allowedOrigins = [
   process.env.CORS_ORIGIN || "http://localhost:5173",
   "http://localhost:3000",
-  "https://task-management-iota-dusky.vercel.app", // Explicitly add Vercel URL
+  "https://task-management-iota-dusky.vercel.app",
 ];
 
 export let io: SocketServer;
@@ -53,6 +53,21 @@ export const createApp = (): { app: Application; server: HttpServer } => {
 
   setupSocket(io);
 
+  // Handle preflight requests globally
+  app.options('*', cors({
+    origin: (origin, callback) => {
+      console.log("Preflight CORS origin:", origin); // Debug
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }));
+
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -63,8 +78,8 @@ export const createApp = (): { app: Application; server: HttpServer } => {
           callback(new Error("Not allowed by CORS"));
         }
       },
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Explicitly include OPTIONS
-      allowedHeaders: ["Content-Type", "Authorization"], // Allow necessary headers
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
       credentials: true,
     })
   );
