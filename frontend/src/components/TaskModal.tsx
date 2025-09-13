@@ -76,6 +76,10 @@ export function TaskModal({ task, isOpen, onClose, mode }: TaskModalProps) {
     if (user?.id && isOpen) {
       if (!socket.connected) {
         console.log("Connecting socket...");
+        const token = localStorage.getItem("token");
+        if (token) {
+          socket.auth = { token };
+        }
         socket.connect();
       }
       socket.emit("joinUser", user.id);
@@ -271,10 +275,34 @@ export function TaskModal({ task, isOpen, onClose, mode }: TaskModalProps) {
         console.log("[CREATE] Emitting createTask via Socket.IO");
         if (!socket.connected) {
           console.log("Socket not connected, attempting to connect...");
+          const token = localStorage.getItem("token");
+          if (token) {
+            socket.auth = { token };
+          }
           socket.connect();
+          await new Promise<void>((resolve) => {
+            socket.once("connect", () => {
+              console.log("Socket connected successfully");
+              resolve();
+            });
+            socket.once("connect_error", (err) => {
+              console.error("Socket connection error:", err);
+              resolve(); // Proceed to emit even if connection fails
+            });
+            setTimeout(() => {
+              if (!socket.connected) {
+                console.warn("Socket connection timeout, proceeding with emit");
+                resolve();
+              }
+            }, 5000);
+          });
         }
         response = await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error("Socket request timed out"));
+          }, 10000); // 10 second timeout
           socket.emit("createTask", taskPayload, (res: SocketResponse) => {
+            clearTimeout(timeoutId);
             console.log("[CREATE] Socket.IO response:", res);
             if (res.success && res.task) {
               resolve(res);
@@ -352,17 +380,41 @@ export function TaskModal({ task, isOpen, onClose, mode }: TaskModalProps) {
 
     if (!socket.connected) {
       console.log("Socket not connected, attempting to connect...");
+      const token = localStorage.getItem("token");
+      if (token) {
+        socket.auth = { token };
+      }
       socket.connect();
+      await new Promise<void>((resolve) => {
+        socket.once("connect", () => {
+          console.log("Socket connected successfully");
+          resolve();
+        });
+        socket.once("connect_error", (err) => {
+          console.error("Socket connection error:", err);
+          resolve(); // Proceed to emit even if connection fails
+        });
+        setTimeout(() => {
+          if (!socket.connected) {
+            console.warn("Socket connection timeout, proceeding with emit");
+            resolve();
+          }
+        }, 5000);
+      });
     }
 
     setSaving(true);
     try {
       console.log("Emitting deleteTask with payload:", { taskId, projectId });
       await new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error("Socket request timed out"));
+        }, 10000); // 10 second timeout
         socket.emit(
           "deleteTask",
           { taskId, projectId },
           (res: { success: boolean; error?: string }) => {
+            clearTimeout(timeoutId);
             console.log("deleteTask response:", res);
             if (res.success) {
               resolve(res);
